@@ -13,7 +13,7 @@ MongoDB's Atlas Device Sync has been **deprecated**, leaving developers without 
 ✅ **Offline-first** - works seamlessly with local Realm databases  
 ✅ **Real-time updates** - instant sync across all connected devices  
 ✅ **Conflict resolution** - automatic last-write-wins strategy  
-✅ **Production-ready** - comprehensive test coverage and battle-tested  
+✅ **Production-ready** - comprehensive test coverage and battle-tested
 
 ### Key Features
 
@@ -60,16 +60,16 @@ class _ChatMessage {
   @PrimaryKey()
   @MapTo('_id')
   late String id;
-  
+
   late String text;
   late String senderName;
   late String senderId;
   late DateTime timestamp;
-  
+
   // Required for sync functionality
   @MapTo('sync_updated_at')
   int? syncUpdatedAt;
-  
+
   @MapTo('sync_update_db')
   bool syncUpdateDb = false;
 }
@@ -78,7 +78,7 @@ class _ChatMessage {
 Generate the Realm schema:
 
 ```bash
-dart run realm_dart generate
+dart run realm_flutter_vector_db generate
 ```
 
 ### 2. Initialize Realm
@@ -115,7 +115,7 @@ final socket = IO.io(
 
 socket.onConnect((_) {
   print('Connected to sync server');
-  
+
   // Join sync room
   socket.emitWithAck('sync:join', {'userId': 'your-user-id'}, ack: (data) {
     if (data['success'] == true) {
@@ -255,12 +255,12 @@ RealmSync automatically handles nested and embedded objects:
 class _ChatRoom {
   @PrimaryKey()
   late String id;
-  
+
   late String name;
-  
+
   // Embedded objects are automatically serialized
   late _ChatUser? owner;
-  
+
   // Lists of embedded objects work too
   late List<_ChatUser> members;
 }
@@ -300,63 +300,57 @@ SyncCollectionConfig<MyModel>(
 
 ## 🏗️ Server Setup
 
-You'll need a Node.js server with Socket.IO and MongoDB. Here's a minimal example:
+Flutter Realm Sync requires a Node.js server with Socket.IO and MongoDB Atlas to handle real-time synchronization.
 
-```javascript
-import express from 'express';
-import { Server } from 'socket.io';
-import { MongoClient } from 'mongodb';
+### Production-Ready Server
 
-const app = express();
-const server = app.listen(3000);
-const io = new Server(server);
-const mongoClient = new MongoClient('your-mongodb-uri');
+We provide a complete, production-ready server implementation:
 
-await mongoClient.connect();
-const db = mongoClient.db('your-database');
+**🚀 [Realm Sync Server](https://github.com/mohit67890/realm-sync-server)**
 
-io.on('connection', (socket) => {
-  // Handle sync:join
-  socket.on('sync:join', async (data, ack) => {
-    const { userId } = data;
-    await socket.join(`user:${userId}`);
-    ack({ success: true, userId });
-  });
-  
-  // Handle mongoUpsert
-  socket.on('mongoUpsert', async (data) => {
-    const { collectionName, document } = data;
-    const collection = db.collection(collectionName);
-    
-    await collection.updateOne(
-      { _id: document._id },
-      { $set: document },
-      { upsert: true }
-    );
-    
-    // Broadcast to other devices
-    socket.broadcast.to(`user:${document.userId}`).emit('sync:changes', {
-      collectionName,
-      changes: [document],
-    });
-  });
-  
-  // Handle sync:get_changes (historic sync)
-  socket.on('sync:get_changes', async (data, ack) => {
-    const { userId, collectionName, since } = data;
-    const collection = db.collection(collectionName);
-    
-    const changes = await collection.find({
-      userId,
-      sync_updated_at: { $gt: since },
-    }).toArray();
-    
-    ack({ success: true, changes });
-  });
-});
+This server includes:
+
+- ✅ Socket.IO integration with room-based user isolation
+- ✅ MongoDB Atlas connectivity with connection pooling
+- ✅ Automatic change broadcasting to connected devices
+- ✅ Historic sync support for offline device catch-up
+- ✅ Comprehensive error handling and logging
+- ✅ TypeScript for type safety
+- ✅ Easy deployment to cloud providers
+
+### Quick Server Setup
+
+1. Clone the server repository:
+
+```bash
+git clone https://github.com/mohit67890/realm-sync-server.git
+cd realm-sync-server
 ```
 
-For a production-ready server implementation, check the [example server](https://github.com/yourusername/flutter_realm_sync/tree/main/sync-implementation).
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Configure environment variables:
+
+```bash
+cp .env.example .env
+# Edit .env with your MongoDB Atlas connection string
+```
+
+4. Start the server:
+
+```bash
+npm run dev  # Development mode
+# or
+npm start    # Production mode
+```
+
+The server will start on `http://localhost:3000` by default.
+
+For detailed setup instructions, deployment guides, and configuration options, visit the [server repository](https://github.com/mohit67890/realm-sync-server).
 
 ## 🧪 Testing
 
@@ -443,11 +437,11 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/flutter_realm_sync/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/flutter_realm_sync/discussions)
+- **Issues**: [GitHub Issues](https://github.com/mohit67890/flutter_realm_sync/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/mohit67890/flutter_realm_sync/discussions)
+- **Server Issues**: [Server GitHub Issues](https://github.com/mohit67890/realm-sync-server/issues)
 - **Documentation**: [Full API Documentation](https://pub.dev/documentation/flutter_realm_sync)
 
 ---
 
 **Made with ❤️ for the Flutter community**
-
