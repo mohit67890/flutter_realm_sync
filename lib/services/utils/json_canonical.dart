@@ -9,7 +9,7 @@ import 'dart:convert';
 /// - DateTime  -> ISO 8601 UTC string
 /// - Enum      -> enum.name (Dart 2.17+) fallback to toString().split('.').last
 /// - Iterable  -> List after recursively canonicalizing elements
-/// - Map       -> New Map<String,dynamic> with canonicalized values
+/// - Map       -> New Map&lt;String,dynamic&gt; with canonicalized values
 /// - num/bool/String/null left as-is
 /// - Objects exposing toJson() => call and canonicalize result
 /// - Fallback -> value.toString()

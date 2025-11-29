@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 String capitalizeFirstLetter(String text) {
@@ -107,7 +106,7 @@ bool deepEquals(dynamic a, dynamic b) {
   if (a == null || b == null) return a == b;
 
   // Normalize numeric types (int vs double) treating 1 and 1.0 as equal
-  bool _numEquals(dynamic x, dynamic y) {
+  bool numEquals(dynamic x, dynamic y) {
     if (x is num && y is num) {
       // Avoid precision issues by comparing as double with a tiny tolerance
       final dx = x.toDouble();
@@ -123,7 +122,7 @@ bool deepEquals(dynamic a, dynamic b) {
   }
 
   // Numeric cross-type equality
-  if (_numEquals(a, b)) return true;
+  if (numEquals(a, b)) return true;
 
   // Realm collections or generic Iterables may not be List; normalize
   if (a is Iterable &&

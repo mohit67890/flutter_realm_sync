@@ -7,14 +7,11 @@ class SyncValidator {
   static void validateConfig<T extends RealmObject>(
     SyncCollectionConfig<T> cfg,
   ) {
-    final hasCustomFrom = cfg.fromServerMap != null;
-    final hasRealmJsonBasics = cfg.propertyNames != null;
-    final hasCreate = cfg.create != null;
-
     // toSyncMap and propertyNames are OPTIONAL
     // RealmJson.toJsonWith() can auto-detect properties or use toEJson() when propertyNames is null
 
     // If propertyNames is provided, validate it includes critical sync fields
+    final hasRealmJsonBasics = cfg.propertyNames != null;
     if (hasRealmJsonBasics) {
       final names = cfg.propertyNames!;
       final hasId = names.contains('id') || names.contains('_id');

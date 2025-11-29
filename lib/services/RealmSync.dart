@@ -9,64 +9,229 @@ import 'RealmHelpers/SyncValidator.dart';
 import 'SyncHelper.dart';
 import 'utils/AppLogger.dart';
 
-/// Configuration for one collection/model to be synced.
+/// Configuration for a single collection/model to be synced between Realm and MongoDB.
 ///
-/// **Minimum Required Configuration (4 fields):**
-/// - `results`: RealmResults to sync
-/// - `collectionName`: MongoDB collection name
-/// - `idSelector`: Function to extract ID from model
-/// - `needsSync`: Predicate to determine if model needs syncing
+/// This class defines how a Realm collection should sync with the server, including
+/// serialization, conflict resolution, and custom processing logic.
 ///
-/// **Automatic Behaviors:**
-/// - **Serialization**: Automatically uses the best available method:
-///   1. Custom `toSyncMap` if provided by user
-///   2. Generated `toEJson()` from `.realm.dart` files (handles nested objects perfectly)
-///   3. Schema introspection fallback
-/// - **Nested Objects**: All RealmObject relationships (to-one, to-many, embedded)
-///   are automatically serialized recursively without any configuration
-/// - **Sanitization**: Removes 'sync_update_db' field by default
-/// - **Flag Management**: Automatically clears syncUpdateDb after successful sync
+/// ## Minimum Required Configuration (4 fields)
 ///
-/// **Optional Customization:**
-/// - Custom serialization: `toSyncMap`, `fromServerMap`
-/// - Schema hints: `propertyNames`, `embeddedProperties` (rarely needed)
-/// - Additional callbacks: `applyAckSuccess`, `applyNoDiff`, `sanitize`
+/// ```dart
+/// SyncCollectionConfig<ChatMessage>(
+///   results: realm.all<ChatMessage>(),           // Required: What to sync
+///   collectionName: 'chat_messages',             // Required: MongoDB collection name
+///   idSelector: (obj) => obj.id,                 // Required: How to get object ID
+///   needsSync: (obj) => obj.syncUpdateDb,        // Required: When to sync
+/// )
+/// ```
+///
+/// ## Automatic Behaviors (Zero Configuration Needed)
+///
+/// - **Serialization**: Automatically uses generated `toEJson()` from `.realm.dart` files
+/// - **Nested Objects**: All relationships (to-one, to-many, embedded) serialize recursively
+/// - **Conflict Resolution**: Last-write-wins based on `sync_updated_at` timestamps
+/// - **Sanitization**: Removes internal 'sync_update_db' field before sending to server
+/// - **Flag Management**: Automatically clears `syncUpdateDb` flag after successful sync
+///
+/// ## Optional Customization
+///
+/// ### Custom Serialization
+/// ```dart
+/// toSyncMap: (obj) => {'_id': obj.id, 'custom': obj.computed},
+/// fromServerMap: (map) => MyModel(map['_id'], custom: map['custom']),
+/// ```
+///
+/// ### Pre-Processing Hook (NEW!)
+/// ```dart
+/// emitPreProcessor: (rawJson) {
+///   rawJson['clientVersion'] = '1.0.0';
+///   rawJson['deviceId'] = DeviceInfo.id;
+///   return rawJson;
+/// },
+/// ```
+///
+/// ### Lifecycle Callbacks
+/// ```dart
+/// applyAckSuccess: (obj) => print('Synced: ${obj.id}'),
+/// applyNoDiff: (obj) => print('No changes: ${obj.id}'),
+/// ```
+///
+/// ### Custom Sanitization
+/// ```dart
+/// sanitize: (map) {
+///   map.remove('localOnlyField');
+///   return map;
+/// },
+/// ```
+///
+/// ## Schema Hints (Rarely Needed)
+///
+/// Only required if auto-detection fails or for advanced nested object scenarios:
+/// ```dart
+/// propertyNames: ['id', 'name', 'timestamp', 'sync_updated_at'],
+/// embeddedProperties: {'user': ['id', 'name']},
+/// embeddedCreators: {'user': (map) => User(map['id'], map['name'])},
+/// create: () => MyModel('', '', DateTime.now()),
+/// ```
 class SyncCollectionConfig<T extends RealmObject> {
+  /// The Realm query results to sync. Changes to these objects trigger sync operations.
+  ///
+  /// Example: `realm.all<ChatMessage>()` or `realm.query<Task>('status == "pending"')`
   final RealmResults<T> results;
+
+  /// MongoDB collection name where data will be synced.
+  ///
+  /// Must match the collection name on your MongoDB Atlas/server.
   final String collectionName;
-  // Use dynamic parameter types to avoid contravariance issues at runtime
+
+  /// Function to extract the unique identifier from a model instance.
+  ///
+  /// Example: `(obj) => obj.id` or `(obj) => obj.documentId.toString()`
   final String Function(dynamic model) idSelector;
+
+  /// Predicate function to determine if an object needs syncing.
+  ///
+  /// This is called to filter which objects trigger sync operations. Common patterns:
+  /// - Flag-based: `(obj) => obj.syncUpdateDb` (explicit control)
+  /// - Always sync: `(obj) => true` (sync every change)
+  /// - Conditional: `(obj) => obj.status == 'published'` (business logic)
+  ///
+  /// **Important**: Return `true` to trigger sync, `false` to skip.
   final bool Function(dynamic model) needsSync;
 
-  // Optional custom mappers; if absent, RealmJson is used.
+  /// Optional custom function to serialize objects before sending to server.
+  ///
+  /// If not provided, uses generated `toEJson()` from `.realm.dart` files.
+  /// Use this when you need computed fields or custom transformations.
+  ///
+  /// Example:
+  /// ```dart
+  /// toSyncMap: (obj) => {
+  ///   '_id': obj.id,
+  ///   'displayName': '${obj.firstName} ${obj.lastName}',
+  ///   'timestamp': obj.createdAt.toIso8601String(),
+  /// }
+  /// ```
   final Map<String, dynamic> Function(dynamic model)? toSyncMap;
-  // Return type is covariant; subtype (e.g., ChatMessage) works for RealmObject
+
+  /// Optional custom function to deserialize server data into Realm objects.
+  ///
+  /// If not provided, uses generated `fromEJson()` from `.realm.dart` files.
+  /// Use this for custom field mapping or data transformation.
+  ///
+  /// Example:
+  /// ```dart
+  /// fromServerMap: (map) => ChatMessage(
+  ///   map['_id'],
+  ///   map['text'],
+  ///   map['sender_name'],
+  ///   map['sender_id'],
+  ///   DateTime.parse(map['timestamp']),
+  /// )
+  /// ```
   final RealmObject Function(Map<String, dynamic> serverMap)? fromServerMap;
 
-  // RealmJson fallback configuration (optional - auto-detects from schema if not provided)
+  /// Optional list of property names for schema introspection fallback.
+  ///
+  /// Rarely needed - only use if auto-detection fails. Should include all fields
+  /// needed for sync, especially 'id'/'_id' and 'sync_updated_at'.
   final List<String>? propertyNames;
+
+  /// Optional nested object property mapping for custom serialization.
+  ///
+  /// Maps parent property names to their child property lists.
+  /// Only needed for complex nested scenarios not handled by `toEJson()`.
   final Map<String, List<String>>? embeddedProperties;
+
+  /// Optional factory functions for creating embedded/nested objects.
+  ///
+  /// Maps property names to functions that create instances from maps.
+  /// Only needed when `fromEJson()` can't handle your nested objects.
   final Map<String, dynamic Function(Map<String, dynamic>)>? embeddedCreators;
+
+  /// Optional factory function to create empty model instances.
+  ///
+  /// Only needed as fallback when `fromEJson()` is unavailable.
   final T Function()? create;
-  // Decoder that captures generic T at construction time to avoid type erasure issues
-  // If not provided, defaults to: fromServerMap ?? RealmJson.fromEJsonMap<T>(...)
+
+  /// Internal decoder function that preserves generic type T.
+  ///
+  /// Automatically set to use `fromServerMap` or `fromEJson<T>()`.
+  /// You typically don't need to provide this - it's auto-configured.
   final RealmObject Function(Map<String, dynamic> data)? decode;
 
-  /// Optional callback after successful sync acknowledgment.
-  /// Note: syncUpdateDb flag is automatically cleared - this is for additional custom logic.
+  /// Optional callback invoked after successful sync acknowledgment from server.
+  ///
+  /// Called within a write transaction, so you can safely modify the object.
+  /// The `syncUpdateDb` flag is automatically cleared - use this for additional logic.
+  ///
+  /// Example:
+  /// ```dart
+  /// applyAckSuccess: (obj) {
+  ///   obj.lastSyncedAt = DateTime.now();
+  ///   print('Successfully synced: ${obj.id}');
+  /// }
+  /// ```
   final void Function(dynamic model)? applyAckSuccess;
 
-  /// Optional callback when no changes were detected during sync.
-  /// Note: syncUpdateDb flag is automatically cleared - this is for additional custom logic.
+  /// Optional callback when no changes detected (diff was empty).
+  ///
+  /// Called within a write transaction. The `syncUpdateDb` flag is automatically
+  /// cleared - use this for logging or custom state management.
+  ///
+  /// Example:
+  /// ```dart
+  /// applyNoDiff: (obj) {
+  ///   print('No changes to sync for: ${obj.id}');
+  /// }
+  /// ```
   final void Function(dynamic model)? applyNoDiff;
 
-  /// Optional data sanitizer before sending to server.
-  /// Default: removes 'sync_update_db' field.
+  /// Optional function to sanitize data before sending to server.
+  ///
+  /// Default behavior removes 'sync_update_db' field. Provide custom implementation
+  /// to remove additional local-only fields or transform data.
+  ///
+  /// Example:
+  /// ```dart
+  /// sanitize: (map) {
+  ///   final clean = Map<String, dynamic>.from(map);
+  ///   clean.remove('sync_update_db');
+  ///   clean.remove('localCacheData');
+  ///   clean.remove('uiStateFlags');
+  ///   return clean;
+  /// }
+  /// ```
   final Map<String, dynamic> Function(Map<String, dynamic>)? sanitize;
 
-  /// Optional pre-processor to modify raw JSON before emitting to server.
-  /// Called just before socket.emit with the final payload.
-  /// Useful for adding metadata, transforming fields, or applying business logic.
+  /// Optional pre-processor to modify payload before emitting to server.
+  ///
+  /// Called just before `socket.emit()` with the complete payload. Perfect for:
+  /// - Adding client metadata (app version, device ID, platform)
+  /// - Injecting authentication tokens or signatures
+  /// - Transforming fields for backend compatibility
+  /// - Adding analytics or tracking tags
+  ///
+  /// **Applied to all operations**: batch changes, individual upserts, and deletes.
+  ///
+  /// Example:
+  /// ```dart
+  /// emitPreProcessor: (rawJson) {
+  ///   rawJson['clientVersion'] = '2.1.0';
+  ///   rawJson['deviceId'] = DeviceInfo.deviceId;
+  ///   rawJson['platform'] = Platform.operatingSystem;
+  ///   rawJson['timestamp'] = DateTime.now().toIso8601String();
+  ///
+  ///   // Transform batch operations
+  ///   if (rawJson['changes'] is List) {
+  ///     for (var change in rawJson['changes']) {
+  ///       change['source'] = 'mobile-app';
+  ///     }
+  ///   }
+  ///
+  ///   return rawJson;
+  /// }
+  /// ```
   final Map<String, dynamic> Function(Map<String, dynamic> rawJson)? emitPreProcessor;
 
   SyncCollectionConfig({
@@ -98,21 +263,112 @@ class SyncCollectionConfig<T extends RealmObject> {
         });
 }
 
-/// Unified change event emitted by MultiRealmSync for any synced collection.
+/// Event emitted when a sync operation completes for an object.
+///
+/// Contains information about which object was synced and provides
+/// access to the updated Realm object instance.
 class SyncObjectEvent {
+  /// The MongoDB collection name where the object was synced.
   final String collectionName;
+
+  /// The unique identifier of the synced object.
   final String id;
-  final RealmObject object; // concrete instance
+
+  /// The actual Realm object instance that was synced.
+  final RealmObject object;
 
   SyncObjectEvent(this.collectionName, this.id, this.object);
 }
 
-/// Manages multiple collection sync helpers & merges their change streams into a single broadcast stream.
+/// Real-time bidirectional sync engine between Realm database and MongoDB Atlas.
+///
+/// This is the main entry point for sync functionality. It manages multiple collections,
+/// handles conflict resolution, coordinates with the server via Socket.IO, and provides
+/// a unified stream of all sync events.
+///
+/// ## Quick Start
+///
+/// ```dart
+/// // 1. Initialize Realm with sync models
+/// final realm = Realm(Configuration.local([
+///   ChatMessage.schema,
+///   SyncMetadata.schema,
+///   SyncDBCache.schema,
+///   SyncOutboxPatch.schema,
+/// ]));
+///
+/// // 2. Connect Socket.IO
+/// final socket = IO.io('http://your-server:3000', ...);
+/// socket.connect();
+///
+/// // 3. Create RealmSync instance
+/// final realmSync = RealmSync(
+///   realm: realm,
+///   socket: socket,
+///   userId: 'user-123',
+///   configs: [
+///     SyncCollectionConfig<ChatMessage>(
+///       results: realm.all<ChatMessage>(),
+///       collectionName: 'chat_messages',
+///       idSelector: (obj) => obj.id,
+///       needsSync: (obj) => obj.syncUpdateDb,
+///     ),
+///   ],
+/// );
+///
+/// // 4. Start syncing
+/// realmSync.start();
+///
+/// // 5. Write data with sync
+/// realm.writeWithSync(message, () {
+///   message.text = "Hello!";
+///   message.syncUpdateDb = true;
+/// });
+/// realmSync.syncObject('chat_messages', message.id);
+/// ```
+///
+/// ## Features
+///
+/// - **Automatic Conflict Resolution**: Last-write-wins based on UTC timestamps
+/// - **Offline Support**: Changes queue locally and sync when online
+/// - **Batch Operations**: Intelligent batching reduces network overhead
+/// - **Historic Sync**: Catch up on missed changes after being offline
+/// - **Change Stream**: Monitor all sync events via `changes` stream
+/// - **Manual Sync**: Force sync specific objects with `syncObject()`
+///
+/// ## Important Notes
+///
+/// - **userId is required** for security and multi-user isolation
+/// - **Include sync models** in Realm config: SyncMetadata, SyncDBCache, SyncOutboxPatch
+/// - **Set sync_updated_at** timestamps using `writeWithSync()` helper
+/// - **Call start()** after construction to begin syncing
+/// - **Call dispose()** when done to cleanup resources
 class RealmSync {
+  /// The Realm database instance containing collections to sync.
   final Realm realm;
+
+  /// Socket.IO connection to the sync server.
+  ///
+  /// Should be connected before calling `start()`. The sync engine
+  /// listens for 'sync:bootstrap', 'sync:changes', and 'connect' events.
   final Socket socket;
-  final String userId; // Unique user identifier for sync attribution
-  final List<SyncCollectionConfig> configs; // erased generics for storage
+
+  /// Unique identifier for the current user.
+  ///
+  /// Required for:
+  /// - Server-side security and data isolation
+  /// - Multi-user conflict resolution
+  /// - Tracking who made which changes
+  /// - Outbox persistence per user
+  ///
+  /// **Important**: Cannot be empty - will throw ArgumentError if empty.
+  final String userId;
+
+  /// List of collection configurations defining what and how to sync.
+  ///
+  /// Each config specifies one Realm collection/model to sync with MongoDB.
+  /// Multiple collections can sync simultaneously with independent configurations.
+  final List<SyncCollectionConfig> configs;
 
   final Map<String, SyncHelper> _helpers = {}; // collectionName -> helper
   final Map<String, StreamSubscription> _subscriptions =
@@ -146,11 +402,43 @@ class RealmSync {
     _loadPersistedTimestamps();
   }
 
+  /// Stream of all sync events across all collections.
+  ///
+  /// Listen to this stream to monitor when objects are synced to the server.
+  /// Each event contains the collection name, object ID, and the Realm object instance.
+  ///
+  /// Example:
+  /// ```dart
+  /// realmSync.changes.listen((event) {
+  ///   print('Synced ${event.collectionName}: ${event.id}');
+  ///   // Access the actual object: event.object
+  /// });
+  /// ```
   Stream<SyncObjectEvent> get changes => _controller.stream;
 
-  // Subscribe to server updates for a collection with a filter matching client RealmResults.
-  // filterExpr: Realm Query Language string (e.g., 'status == $0 AND ownerId == $1')
-  // args: values for placeholders
+  /// Subscribe to server-side filtered updates for a collection.
+  ///
+  /// This tells the server to only send changes matching the specified filter,
+  /// reducing network traffic and improving performance. The filter should match
+  /// your local Realm query to ensure consistency.
+  ///
+  /// **Parameters:**
+  /// - `collectionName`: The MongoDB collection to subscribe to
+  /// - `filterExpr`: Realm Query Language filter (e.g., 'status == \$0 AND userId == \$1')
+  /// - `args`: Values for filter placeholders in order
+  ///
+  /// Example:
+  /// ```dart
+  /// // Subscribe to only active tasks for current user
+  /// realmSync.subscribe(
+  ///   'tasks',
+  ///   filterExpr: 'status == \$0 AND ownerId == \$1',
+  ///   args: ['active', currentUserId],
+  /// );
+  /// ```
+  ///
+  /// **Important**: Call this before or after `start()`. Server will only send
+  /// changes matching this filter for the specified collection.
   void subscribe(
     String collectionName, {
     required String filterExpr,
@@ -167,11 +455,47 @@ class RealmSync {
     });
   }
 
+  /// Unsubscribe from server-side filtered updates for a collection.
+  ///
+  /// Removes the filter subscription, causing the server to stop sending
+  /// filtered updates for this collection. The collection will still sync
+  /// normally based on local changes.
+  ///
+  /// Example:
+  /// ```dart
+  /// realmSync.unsubscribe('tasks');
+  /// ```
   void unsubscribe(String collectionName) {
     _subscriptionsByCollection.remove(collectionName);
     socket.emit('sync:unsubscribe', {'collection': collectionName});
   }
 
+  /// Start the sync engine and begin synchronizing all configured collections.
+  ///
+  /// This method:
+  /// 1. Validates all collection configurations
+  /// 2. Creates sync helpers for each collection
+  /// 3. Hydrates the persistent outbox (restores pending changes)
+  /// 4. Queues initial sync for objects marked as needing sync
+  /// 5. Sets up Socket.IO event listeners for server updates
+  /// 6. Starts monitoring local Realm changes
+  ///
+  /// **Call this once after construction.** Subsequent calls are ignored.
+  ///
+  /// Example:
+  /// ```dart
+  /// final realmSync = RealmSync(realm: realm, socket: socket, ...);
+  /// realmSync.start(); // Start syncing
+  ///
+  /// // Now write data and it will sync automatically
+  /// realm.writeWithSync(message, () {
+  ///   message.text = "Hello!";
+  ///   message.syncUpdateDb = true;
+  /// });
+  /// ```
+  ///
+  /// **Important**: Ensure Socket.IO is connected before calling `start()`,
+  /// or sync operations will queue until connection is established.
   void start() {
     if (_started) return;
 
@@ -579,13 +903,32 @@ class RealmSync {
     _started = true;
   }
 
-  /// Manually trigger sync for a specific object ID in a collection.
-  /// This is useful when you need to force an immediate sync without waiting
-  /// for the automatic results.changes listener (which may not fire for property changes).
+  /// Manually trigger immediate sync for a specific object.
   ///
-  /// Uses scheduleFullSync to ensure complete data is sent. This is safer than
-  /// computeAndScheduleDiff for manually triggered syncs since the timing of the
-  /// trigger relative to the write operation can affect diff computation accuracy.
+  /// Use this when you need to force sync without waiting for the automatic
+  /// change listener. Common scenarios:
+  /// - After batch writes where change listeners may not fire
+  /// - When `needsSync` predicate is complex and you want explicit control
+  /// - For critical updates that must sync immediately
+  ///
+  /// **Sends complete object data** (not just diffs) to ensure accuracy.
+  ///
+  /// Example:
+  /// ```dart
+  /// // Create and sync a message
+  /// realm.write(() {
+  ///   final message = ChatMessage('id-123', 'Hello', ...);
+  ///   message.syncUpdateDb = true;
+  ///   realm.add(message);
+  /// });
+  /// realmSync.syncObject('chat_messages', 'id-123');
+  /// ```
+  ///
+  /// **Parameters:**
+  /// - `collectionName`: MongoDB collection name (must match config)
+  /// - `objectId`: The unique ID of the object to sync
+  ///
+  /// **Note**: Object must exist in the configured `RealmResults` for this collection.
   void syncObject(String collectionName, String objectId) {
     final helper = _helpers[collectionName];
     if (helper == null) {
@@ -601,18 +944,60 @@ class RealmSync {
   }
 
   /// Manually trigger sync for multiple objects in a collection.
+  ///
+  /// Convenience method to sync multiple objects at once. Each object
+  /// is synced independently with full data (not diffs).
+  ///
+  /// Example:
+  /// ```dart
+  /// realmSync.syncObjects('chat_messages', ['id-1', 'id-2', 'id-3']);
+  /// ```
+  ///
+  /// **Parameters:**
+  /// - `collectionName`: MongoDB collection name
+  /// - `objectIds`: List of object IDs to sync
   void syncObjects(String collectionName, List<String> objectIds) {
     for (final id in objectIds) {
       syncObject(collectionName, id);
     }
   }
 
-  /// Public accessor for the last remote timestamp tracked for a collection.
-  /// Returns 0 if no timestamp has been recorded yet.
+  /// Get the last remote timestamp for a collection.
+  ///
+  /// This is the UTC millisecond timestamp of the most recent change received
+  /// from the server for this collection. Used internally for historic sync
+  /// to request only changes since this timestamp.
+  ///
+  /// Returns `0` if no remote changes have been received yet.
+  ///
+  /// Example:
+  /// ```dart
+  /// final lastSync = realmSync.lastRemoteTimestamp('chat_messages');
+  /// print('Last synced at: ${DateTime.fromMillisecondsSinceEpoch(lastSync)}');
+  /// ```
   int lastRemoteTimestamp(String collectionName) {
     return _lastRemoteTsByCollection[collectionName] ?? 0;
   }
 
+  /// Clean up all resources and stop syncing.
+  ///
+  /// Call this when you're done with sync (e.g., on app shutdown or user logout).
+  /// This method:
+  /// - Cancels all change listeners
+  /// - Disposes all sync helpers
+  /// - Closes the change event stream
+  /// - Clears internal state
+  ///
+  /// **Important**: After calling `dispose()`, this RealmSync instance cannot
+  /// be reused. Create a new instance if you need to sync again.
+  ///
+  /// Example:
+  /// ```dart
+  /// // On logout or app shutdown
+  /// realmSync.dispose();
+  /// realm.close();
+  /// socket.dispose();
+  /// ```
   void dispose() {
     for (final sub in _subscriptions.values) {
       try {
