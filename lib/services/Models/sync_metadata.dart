@@ -1,6 +1,6 @@
 import 'package:realm_flutter_vector_db/realm_vector_db.dart';
 
-part 'SyncMetadata.realm.dart';
+part 'sync_metadata.realm.dart';
 
 /// Stores sync metadata for each collection to enable efficient historical sync.
 /// Tracks the last remote timestamp received from the server, allowing the client

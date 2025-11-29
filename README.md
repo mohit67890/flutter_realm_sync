@@ -243,9 +243,9 @@ dart run realm_flutter_vector_db generate
 
 ```dart
 import 'package:realm_flutter_vector_db/realm_vector_db.dart';
-import 'package:flutter_realm_sync/services/Models/SyncMetadata.dart';
-import 'package:flutter_realm_sync/services/Models/SyncDBCache.dart';
-import 'package:flutter_realm_sync/services/Models/SyncOutboxPatch.dart';
+import 'package:flutter_realm_sync/services/Models/sync_metadata.dart';
+import 'package:flutter_realm_sync/services/Models/sync_db_cache.dart';
+import 'package:flutter_realm_sync/services/Models/sync_outbox_patch.dart';
 
 // Configure Realm with your models and sync models
 final config = Configuration.local([
@@ -324,7 +324,7 @@ realmSync.fetchAllHistoricChanges(applyLocally: true);
 ### 5. Create and Sync Data
 
 ```dart
-import 'package:flutter_realm_sync/services/RealmHelpers/RealmSyncExtensions.dart';
+import 'package:flutter_realm_sync/services/RealmHelpers/realm_sync_extensions.dart';
 
 // Before: Manual boilerplate hell
 /* 

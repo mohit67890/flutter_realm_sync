@@ -10,8 +10,8 @@ import 'package:realm_flutter_vector_db/realm_vector_db.dart';
 /// 3. **Explicit property lists** - Manual specification for edge cases
 ///
 /// **Deserialization Strategy:**
-/// 1. **fromEJsonMap<T>()** - Recommended, uses generated fromEJson() for automatic nested object handling
-/// 2. **fromJsonWith<T>()** - Manual deserialization with explicit property lists
+/// 1. **fromEJsonMap&lt;T&gt;()** - Recommended, uses generated fromEJson() for automatic nested object handling
+/// 2. **fromJsonWith&lt;T&gt;()** - Manual deserialization with explicit property lists
 ///
 /// **Round-Trip Serialization:**
 /// ```dart

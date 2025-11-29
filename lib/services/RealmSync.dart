@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:realm_flutter_vector_db/realm_vector_db.dart';
 import 'package:socket_io_client/socket_io_client.dart';
 
-import 'Models/SyncMetadata.dart';
-import 'RealmHelpers/RealmJson.dart';
-import 'RealmHelpers/SyncValidator.dart';
-import 'SyncHelper.dart';
-import 'utils/AppLogger.dart';
+import 'Models/sync_metadata.dart';
+import 'RealmHelpers/realm_json.dart';
+import 'RealmHelpers/sync_validator.dart';
+import 'sync_helper.dart';
+import 'utils/app_logger.dart';
 
 /// Configuration for a single collection/model to be synced between Realm and MongoDB.
 ///

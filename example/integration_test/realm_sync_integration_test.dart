@@ -2,11 +2,11 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:realm_flutter_vector_db/realm_vector_db.dart';
-import 'package:flutter_realm_sync/services/Models/SyncDBCache.dart';
-import 'package:flutter_realm_sync/services/Models/SyncOutboxPatch.dart';
+import 'package:flutter_realm_sync/services/Models/sync_db_cache.dart';
+import 'package:flutter_realm_sync/services/Models/sync_outbox_patch.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter_realm_sync/services/RealmSync.dart';
-import 'package:flutter_realm_sync/services/RealmHelpers/RealmSyncExtensions.dart';
+import 'package:flutter_realm_sync/services/RealmHelpers/realm_sync_extensions.dart';
 
 final String url = 'http://localhost:3000';
 final String userId = 'test-user-${DateTime.now().millisecondsSinceEpoch}';

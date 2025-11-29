@@ -1,17 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:realm_flutter_vector_db/realm_vector_db.dart';
-import 'package:flutter_realm_sync/services/Models/SyncDBCache.dart';
-import 'package:flutter_realm_sync/services/Models/EnumTypes.dart';
-import 'package:flutter_realm_sync/services/Models/SyncOutboxPatch.dart';
-import 'package:flutter_realm_sync/services/utils/MongoOperations.dart';
+import 'package:flutter_realm_sync/services/Models/sync_db_cache.dart';
+import 'package:flutter_realm_sync/services/Models/enum_types.dart';
+import 'package:flutter_realm_sync/services/Models/sync_outbox_patch.dart';
+import 'package:flutter_realm_sync/services/utils/mongo_operations.dart';
 import 'package:flutter_realm_sync/services/utils/diff_rehydrate.dart';
 import 'package:flutter_realm_sync/services/utils/helpers.dart';
 import 'package:flutter_realm_sync/services/utils/json_canonical.dart';
 import 'package:socket_io_client/socket_io_client.dart';
 import 'package:uuid/uuid.dart' as uuid;
 
-import 'utils/AppLogger.dart';
+import 'utils/app_logger.dart';
 
 /// A reusable helper to manage partial patch diffs, debouncing, retries, and flushing per-id.
 ///

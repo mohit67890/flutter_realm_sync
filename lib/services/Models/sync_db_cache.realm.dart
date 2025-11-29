@@ -1,7 +1,7 @@
 // dart format width=80
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'SyncDBCache.dart';
+part of 'sync_db_cache.dart';
 
 // **************************************************************************
 // RealmObjectGenerator

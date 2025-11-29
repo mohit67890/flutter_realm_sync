@@ -1,10 +1,10 @@
 import 'package:realm_flutter_vector_db/realm_vector_db.dart';
 
-part 'SyncOutboxPatch.realm.dart';
+part 'sync_db_cache.realm.dart';
 
 @RealmModel()
-@MapTo('outbox')
-class _SyncOutboxPatch {
+@MapTo('dbcache')
+class _SyncDBCache {
   @PrimaryKey()
   @MapTo('_id')
   late String id;
@@ -12,9 +12,10 @@ class _SyncOutboxPatch {
   late String uid;
   late String collection;
   late String entityId;
-  late String payloadJson;
+  late String diffJson;
+  late String newJson;
+
+  late String operation; // e.g., 'inserted', 'modified', 'deleted'
 
   DateTime? createdAt;
-  DateTime? lastAttemptAt;
-  int attempts = 0;
 }

@@ -1,5 +1,5 @@
 name: flutter_realm_sync
-description: A Flutter plugin that provides real-time bidirectional sync between Realm database and MongoDB Atlas using Socket.IO. Features automatic conflict resolution, batch operations, change tracking, and comprehensive CRUD operation syncing with timestamp-based verification.
+description: Real-time bidirectional sync between Realm and MongoDB Atlas. Replaces deprecated Atlas Device Sync with offline-first architecture.
 version: 0.0.1
 homepage: https://github.com/mohit67890/flutter_realm_sync
 
@@ -12,9 +12,9 @@ dependencies:
     sdk: flutter
   plugin_platform_interface: ^2.0.2
   realm_flutter_vector_db: ^1.0.11
-  uuid: ^3.0.6
+  uuid: ^4.5.0
   socket_io_client: ^3.1.2
-  intl: ^0.19.0
+  intl: ^0.20.0
 
 dev_dependencies:
   flutter_test:

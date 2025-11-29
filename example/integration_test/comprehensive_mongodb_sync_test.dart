@@ -6,7 +6,7 @@ import 'package:flutter_realm_sync/services/Models/SyncDBCache.dart';
 import 'package:flutter_realm_sync/services/Models/SyncOutboxPatch.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter_realm_sync/services/RealmSync.dart';
-import 'package:flutter_realm_sync/services/RealmHelpers/RealmSyncExtensions.dart';
+import 'package:flutter_realm_sync/services/RealmHelpers/realm_sync_extensions.dart';
 import 'Goal.dart';
 
 final String url = 'http://localhost:3000';

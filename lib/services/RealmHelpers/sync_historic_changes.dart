@@ -3,8 +3,8 @@ import 'package:realm_flutter_vector_db/realm_vector_db.dart';
 import 'package:socket_io_client/socket_io_client.dart';
 
 import '../RealmSync.dart';
-import '../utils/AppLogger.dart';
-import 'RealmJson.dart';
+import '../utils/app_logger.dart';
+import 'realm_json.dart';
 
 /// Result summary for a historic change fetch.
 class HistoricChangesResult {

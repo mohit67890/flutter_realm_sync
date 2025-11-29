@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:realm_flutter_vector_db/realm_vector_db.dart';
-import 'package:flutter_realm_sync/services/Models/SyncDBCache.dart';
+import 'package:flutter_realm_sync/services/Models/sync_db_cache.dart';
 import 'package:flutter_realm_sync/services/utils/helpers.dart';
 import 'package:flutter_realm_sync/services/utils/json_canonical.dart';
-import 'RealmJson.dart';
+import 'realm_json.dart';
 
 /// Extension to provide convenience methods for Realm operations with automatic
 /// sync_updated_at timestamp management and DBCache diff tracking.

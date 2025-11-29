@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import '../RealmSync.dart';
-import '../Models/SyncMetadata.dart';
-import '../utils/AppLogger.dart';
-import 'SyncHistoricChanges.dart';
+import '../Models/sync_metadata.dart';
+import '../utils/app_logger.dart';
+import 'sync_historic_changes.dart';
 
 /// Extension methods on RealmSync for fetching historical changes.
 extension RealmSyncHistoricExtension on RealmSync {
