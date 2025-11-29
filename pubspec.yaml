@@ -1,6 +1,6 @@
 name: flutter_realm_sync
 description: Real-time bidirectional sync between Realm and MongoDB Atlas. Replaces deprecated Atlas Device Sync with offline-first architecture.
-version: 0.0.1
+version: 0.0.2
 homepage: https://github.com/mohit67890/flutter_realm_sync
 
 environment:

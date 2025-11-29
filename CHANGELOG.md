@@ -1,3 +1,24 @@
+## 0.0.2
+
+**📦 Pub.dev Optimization Release**
+
+### ✨ Improvements
+
+* **Code Quality**: All Dart files renamed to follow snake_case naming convention (pana score: 150/160)
+* **Dependencies**: Updated to latest stable versions (intl ^0.20.0, uuid ^4.5.0)
+* **Description**: Optimized package description for better discoverability
+* **Documentation**: Fixed HTML escaping in API documentation
+* **Compatibility**: Improved pub downgrade compatibility
+
+### 🔧 Technical Changes
+
+* Renamed 12+ files to comply with Dart style guide
+* Updated 50+ import statements across codebase
+* Regenerated Realm model files for compatibility
+* Added build_runner and realm_generator as dev dependencies
+
+---
+
 ## 0.0.1
 
 **🎉 Initial Release - The Official Atlas Device Sync Replacement**
