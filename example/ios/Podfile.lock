@@ -1,0 +1,34 @@
+PODS:
+  - Flutter (1.0.0)
+  - flutter_realm_sync (0.0.1):
+    - Flutter
+  - integration_test (0.0.1):
+    - Flutter
+  - realm_flutter_vector_db (3.5.0):
+    - Flutter
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - flutter_realm_sync (from `.symlinks/plugins/flutter_realm_sync/ios`)
+  - integration_test (from `.symlinks/plugins/integration_test/ios`)
+  - realm_flutter_vector_db (from `.symlinks/plugins/realm_flutter_vector_db/ios`)
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  flutter_realm_sync:
+    :path: ".symlinks/plugins/flutter_realm_sync/ios"
+  integration_test:
+    :path: ".symlinks/plugins/integration_test/ios"
+  realm_flutter_vector_db:
+    :path: ".symlinks/plugins/realm_flutter_vector_db/ios"
+
+SPEC CHECKSUMS:
+  Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  flutter_realm_sync: e3f93a93419824140219ccd78f8f2710d19e00b5
+  integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
+  realm_flutter_vector_db: 2e8e7661c7259d8c18ff2dcbfc30c1bb31146e68
+
+PODFILE CHECKSUM: 4305caec6b40dde0ae97be1573c53de1882a07e5
+
+COCOAPODS: 1.16.2
