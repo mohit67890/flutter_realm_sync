@@ -39,8 +39,8 @@ class HistoricChangesResult {
 /// - upsert otherwise
 ///
 /// NOTE: For deserialization it prefers `config.fromServerMap`; if absent it
-/// falls back to RealmJson with `propertyNames` + `create` factory. If neither
-/// is available an error is thrown.
+/// automatically uses the generated `fromEJson()` method which infers the correct
+/// type from the data structure.
 class SyncHistoricChanges {
   final Socket socket;
   final Realm realm;
@@ -166,24 +166,14 @@ class SyncHistoricChanges {
           data['_id'] = docId;
           data['sync_updated_at'] = remoteTs;
 
-          RealmObject newObj;
-          if (config.fromServerMap != null) {
-            newObj = config.fromServerMap!(data);
-          } else {
-            // RealmJson fallback requires propertyNames + create
-            if (config.propertyNames == null || config.create == null) {
-              throw StateError(
-                'HistoricChanges: config for $collection missing fromServerMap or propertyNames/create for fallback',
-              );
-            }
-            final creator = () => config.create!();
-            newObj = RealmJson.fromJsonWith<RealmObject>(
-              data,
-              creator,
-              config.propertyNames!,
-              embeddedCreators: config.embeddedCreators,
-            );
-          }
+          final T newObj = (config.decode != null)
+              ? (config.decode!(data) as T)
+              : RealmJson.fromEJsonMap<T>(
+                  data,
+                  create: config.create,
+                  propertyNames: config.propertyNames,
+                  embeddedCreators: config.embeddedCreators,
+                );
           realm.add(newObj, update: true);
           applied++;
           appliedIds.add(docId);

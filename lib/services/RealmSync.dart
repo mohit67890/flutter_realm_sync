@@ -48,6 +48,9 @@ class SyncCollectionConfig<T extends RealmObject> {
   final Map<String, List<String>>? embeddedProperties;
   final Map<String, dynamic Function(Map<String, dynamic>)>? embeddedCreators;
   final T Function()? create;
+  // Decoder that captures generic T at construction time to avoid type erasure issues
+  // If not provided, defaults to: fromServerMap ?? RealmJson.fromEJsonMap<T>(...)
+  final RealmObject Function(Map<String, dynamic> data)? decode;
 
   /// Optional callback after successful sync acknowledgment.
   /// Note: syncUpdateDb flag is automatically cleared - this is for additional custom logic.
@@ -75,7 +78,18 @@ class SyncCollectionConfig<T extends RealmObject> {
     this.applyAckSuccess,
     this.applyNoDiff,
     this.sanitize,
-  });
+    RealmObject Function(Map<String, dynamic> data)? decode,
+  }) : decode = decode ?? ((Map<String, dynamic> map) {
+          if (fromServerMap != null) {
+            return fromServerMap(map);
+          }
+          return RealmJson.fromEJsonMap<T>(
+            map,
+            create: create,
+            propertyNames: propertyNames,
+            embeddedCreators: embeddedCreators,
+          );
+        });
 }
 
 /// Unified change event emitted by MultiRealmSync for any synced collection.
@@ -344,11 +358,8 @@ class RealmSync {
                       : DateTime.now().toUtc().millisecondsSinceEpoch;
               map['_id'] = id;
               map['sync_updated_at'] = ts;
-              // Prefer user-provided deserializer; else RealmJson fallback
-              final RealmObject obj =
-                  (cfg.fromServerMap != null)
-                      ? cfg.fromServerMap!(map)
-                      : _fromServerWithRealmJson(cfg, map);
+                // Use config-captured decoder (preserves generic T)
+                final RealmObject obj = cfg.decode!(map);
               realm.add(obj, update: true);
               helper.cancelForId(id);
               helper.setBaselineFromModel(id);
@@ -426,10 +437,7 @@ class RealmSync {
                 );
                 data['_id'] = id;
                 data['sync_updated_at'] = ts; // UTC millis
-                final RealmObject obj =
-                    (cfg.fromServerMap != null)
-                        ? cfg.fromServerMap!(data)
-                        : _fromServerWithRealmJson(cfg, data);
+                final RealmObject obj = cfg.decode!(data);
                 realm.add(obj, update: true);
                 helper.cancelForId(id);
                 helper.setBaselineFromModel(id);
@@ -537,10 +545,7 @@ class RealmSync {
                     );
                     data['_id'] = id;
                     data['sync_updated_at'] = ts; // UTC millis
-                    final RealmObject obj =
-                        (cfg2.fromServerMap != null)
-                            ? cfg2.fromServerMap!(data)
-                            : _fromServerWithRealmJson(cfg2, data);
+                    final RealmObject obj = cfg2.decode!(data);
                     realm.add(obj, update: true);
                     helper2.cancelForId(id);
                     helper2.setBaselineFromModel(id);
@@ -679,24 +684,5 @@ class RealmSync {
     } catch (_) {
       // Field doesn't exist or can't be set - ignore
     }
-  }
-
-  // Fallback deserializer using RealmJson; requires propertyNames and a create factory.
-  RealmObject _fromServerWithRealmJson(
-    SyncCollectionConfig cfg,
-    Map<String, dynamic> json,
-  ) {
-    if (cfg.propertyNames == null || cfg.create == null) {
-      throw StateError(
-        'RealmJson fallback requires propertyNames and create() in SyncCollectionConfig for ${cfg.collectionName}',
-      );
-    }
-    final RealmObject Function() creator = () => cfg.create!();
-    return RealmJson.fromJsonWith<RealmObject>(
-      json,
-      creator,
-      cfg.propertyNames!,
-      embeddedCreators: cfg.embeddedCreators,
-    );
   }
 }

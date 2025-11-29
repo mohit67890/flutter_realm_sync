@@ -781,19 +781,48 @@ class SyncHelper {
     final count = (_retryCountById[id] ?? 0) + 1;
     _retryCountById[id] = count;
 
-    // Exponential backoff with jitter, capped at 30s
-    final base = 1000; // 1s
-    int delayMs = base * (1 << (count - 1));
-    if (delayMs > 30000) delayMs = 30000;
-    final jitter = (delayMs * 0.1).toInt();
-    delayMs = delayMs + (DBTime().millisecond % (jitter + 1)) - (jitter ~/ 2);
-    if (delayMs < 500) delayMs = 500;
+    int delayMs;
+    
+    if (socket.connected) {
+      // Socket is connected - use aggressive retry with shorter exponential backoff
+      // This handles transient server errors, rate limits, or processing delays
+      final base = 500; // 500ms base when connected
+      delayMs = base * (1 << (count - 1));
+      if (delayMs > 10000) delayMs = 10000; // Cap at 10s when connected
+      
+      // Add small jitter to prevent thundering herd
+      final jitter = (delayMs * 0.15).toInt();
+      delayMs = delayMs + (DBTime().millisecond % (jitter + 1)) - (jitter ~/ 2);
+      if (delayMs < 500) delayMs = 500;
+    } else {
+      // Socket is disconnected - use conservative backoff to avoid wasting resources
+      // The heartbeat will trigger flushAllPending() once reconnected anyway
+      final base = 2000; // 2s base when disconnected
+      delayMs = base * (1 << (count - 1));
+      if (delayMs > 60000) delayMs = 60000; // Cap at 60s when disconnected
+      
+      // Larger jitter for disconnected state
+      final jitter = (delayMs * 0.2).toInt();
+      delayMs = delayMs + (DBTime().millisecond % (jitter + 1)) - (jitter ~/ 2);
+      if (delayMs < 2000) delayMs = 2000;
+    }
 
     AppLogger.log(
-      'SyncHelper: retry #$count for $collectionName:$id in ${delayMs}ms',
+      'SyncHelper: retry #$count for $collectionName:$id in ${delayMs}ms (socket ${socket.connected ? "connected" : "disconnected"})',
     );
+    
     _retryTimersById[id] = Timer(Duration(milliseconds: delayMs), () {
       if (_inFlightById[id] == true) return;
+      
+      // Recheck socket connection before retry attempt
+      if (!socket.connected) {
+        AppLogger.log(
+          'SyncHelper: retry for $collectionName:$id skipped - socket disconnected',
+        );
+        _scheduleRetry(id); // Reschedule with disconnected backoff
+        return;
+      }
+      
       if (_pendingDeleteIds.contains(id)) {
         _flushDelete(id);
       } else if ((_pendingPatchById[id] ?? {}).isNotEmpty) {

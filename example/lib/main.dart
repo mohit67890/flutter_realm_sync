@@ -248,21 +248,6 @@ class _ChatScreenState extends State<ChatScreen> {
             results: results,
             idSelector: (obj) => obj.id,
             needsSync: (obj) => obj.syncUpdateDb,
-            fromServerMap: (map) {
-              print('🔄 Creating ChatMessage from server data: ${map['_id']}');
-              return ChatMessage(
-                map['_id'] as String,
-                map['text'] as String? ?? '',
-                map['senderName'] as String? ?? '',
-                map['senderId'] as String? ?? '',
-                map['timestamp'] is String
-                    ? DateTime.parse(map['timestamp'])
-                    : DateTime.fromMillisecondsSinceEpoch(
-                      map['timestamp'] ?? 0,
-                    ),
-                syncUpdatedAt: map['sync_updated_at'] as int?,
-              );
-            },
           ),
         ],
       );
@@ -283,8 +268,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _sendMessage() {
-    if (_messageController.text.trim().isEmpty || !_isJoined || realm == null)
-      return;
+    if (_messageController.text.trim().isEmpty || realm == null) return;
 
     final messageText = _messageController.text.trim();
     _messageController.clear();
@@ -350,6 +334,21 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         actions: [
+          Switch(
+            value: socket?.connected ?? false,
+            onChanged: (value) {
+              if (value) {
+                socket?.connect();
+              } else {
+                socket?.disconnect();
+              }
+              setState(() {
+                _connectionStatus = value ? 'Connected' : 'Disconnected';
+                _isJoined = value;
+              });
+            },
+          ),
+
           GestureDetector(
             onTap: () {
               RealmResults<SyncMetadata> metadataResults = realm!
@@ -531,13 +530,12 @@ class _ChatScreenState extends State<ChatScreen> {
                         vertical: 10,
                       ),
                     ),
-                    enabled: _isJoined,
                     onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
                 const SizedBox(width: 8),
                 FloatingActionButton(
-                  onPressed: _isJoined ? _sendMessage : null,
+                  onPressed: _sendMessage,
                   child: const Icon(Icons.send),
                 ),
               ],

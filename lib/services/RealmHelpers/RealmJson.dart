@@ -218,17 +218,52 @@ class RealmJson {
       // This is a global function that requires schema registration
       return fromEJson<T>(ejsonData);
     } catch (e) {
-      // fromEJson() not available or failed - fall back to manual deserialization
-      if (create != null && propertyNames != null) {
-        return fromJsonWith<T>(
-          json,
-          create,
-          propertyNames,
-          embeddedCreators: embeddedCreators,
-        );
+      // Attempt a second pass: if id/_id are hex or UUID strings, encode to extended EJSON
+      try {
+        final adjusted = _withIdAsExtendedJson(json);
+        final ejsonData2 = _plainToEJson(adjusted);
+        return fromEJson<T>(ejsonData2);
+      } catch (_) {
+        // Fall back to manual deserialization if hints are provided
+        if (create != null && propertyNames != null) {
+          return fromJsonWith<T>(
+            json,
+            create,
+            propertyNames,
+            embeddedCreators: embeddedCreators,
+          );
+        }
+        rethrow;
       }
-      rethrow;
     }
+  }
+
+  /// If the JSON contains `id` or `_id` as 24-hex or UUID strings, wrap them
+  /// into Extended JSON objects so `fromEJson<T>` can decode ObjectId/Uuid types.
+  /// Keeps other keys unchanged. Only transforms top-level `id`/`_id` keys.
+  static Map<String, dynamic> _withIdAsExtendedJson(
+    Map<String, dynamic> src,
+  ) {
+    final out = Map<String, dynamic>.from(src);
+    for (final key in const ['_id', 'id']) {
+      final val = out[key];
+      if (val is String) {
+        // ObjectId (24 hex chars)
+        if (val.length == 24 && RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(val)) {
+          out[key] = {'\$oid': val};
+          continue;
+        }
+        // UUID (standard format)
+        if (RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+          caseSensitive: false,
+        ).hasMatch(val)) {
+          out[key] = {'\$uuid': val};
+          continue;
+        }
+      }
+    }
+    return out;
   }
 
   /// Convert plain JSON to EJson format (reverse of _ejsonToPlain).
@@ -240,19 +275,6 @@ class RealmJson {
     if (value == null) return null;
 
     if (value is String) {
-      // Try to parse as ObjectId (24 hex chars)
-      if (value.length == 24 && RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(value)) {
-        return {'\$oid': value};
-      }
-
-      // Try to parse as UUID (standard format)
-      if (RegExp(
-        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-        caseSensitive: false,
-      ).hasMatch(value)) {
-        return {'\$uuid': value};
-      }
-
       // Try to parse as DateTime (ISO-8601)
       final dt = DateTime.tryParse(value);
       if (dt != null) {

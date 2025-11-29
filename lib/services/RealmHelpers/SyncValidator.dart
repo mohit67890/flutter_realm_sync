@@ -14,15 +14,6 @@ class SyncValidator {
     // toSyncMap and propertyNames are OPTIONAL
     // RealmJson.toJsonWith() can auto-detect properties or use toEJson() when propertyNames is null
 
-    // For deserialization (inbound sync), we need either:
-    // 1. Custom fromServerMap, OR
-    // 2. propertyNames + create() for RealmJson fallback
-    if (!hasCustomFrom && (!hasRealmJsonBasics || !hasCreate)) {
-      throw StateError(
-        'SyncCollectionConfig(${cfg.collectionName}) requires either fromServerMap or both propertyNames and create() for deserializing inbound changes',
-      );
-    }
-
     // If propertyNames is provided, validate it includes critical sync fields
     if (hasRealmJsonBasics) {
       final names = cfg.propertyNames!;
