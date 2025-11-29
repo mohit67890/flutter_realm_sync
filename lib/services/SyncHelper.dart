@@ -33,6 +33,7 @@ class SyncHelper {
   final Map<String, dynamic> Function(Map<String, dynamic>) sanitize;
   final void Function(String id)? onAckSuccess;
   final void Function(String id)? onNoDiff;
+  final Map<String, dynamic> Function(Map<String, dynamic> rawJson)? emitPreProcessor;
 
   // State maps
   final Map<String, Map<String, dynamic>> _lastSyncedById = {};
@@ -69,6 +70,7 @@ class SyncHelper {
     Map<String, dynamic> Function(Map<String, dynamic>)? sanitize,
     this.onAckSuccess,
     this.onNoDiff,
+    this.emitPreProcessor,
     this.debounceDelay = const Duration(milliseconds: 250),
     this.enableBatching = true,
     this.batchWindow = const Duration(milliseconds: 300),
@@ -494,10 +496,16 @@ class SyncHelper {
       AppLogger.log(
         'SyncHelper: emitting sync:changeBatch with ${changes.length} changes to socket (connected=${socket.connected})',
       );
-      // Emit batch to server
-      final ackFuture = socket.emitWithAckAsync('sync:changeBatch', {
+      // Prepare payload
+      Map<String, dynamic> payload = {
         'changes': changes,
-      });
+      };
+      // Apply pre-processor if provided
+      if (emitPreProcessor != null) {
+        payload = emitPreProcessor!(payload);
+      }
+      // Emit batch to server
+      final ackFuture = socket.emitWithAckAsync('sync:changeBatch', payload);
 
       final timed = await Future.any([
         ackFuture,
@@ -631,6 +639,10 @@ class SyncHelper {
     _inFlightById[id] = true;
     bool success = false;
     try {
+      // Apply pre-processor if provided
+      if (emitPreProcessor != null) {
+        payload = emitPreProcessor!(payload);
+      }
       // Impose an ack timeout so we don't hang indefinitely
       final ackFuture = socket.emitWithAckAsync(
         MongoDBType.mongoUpsert.toValue(),
@@ -697,7 +709,7 @@ class SyncHelper {
       return;
     }
 
-    final payload = mongoOperations.deleteOperation(collectionName, {
+    var payload = mongoOperations.deleteOperation(collectionName, {
       '_id': id,
       // Propagate user identity for server-side attribution/scoping
       'userId': userId,
@@ -710,6 +722,10 @@ class SyncHelper {
     _inFlightById[id] = true;
     bool success = false;
     try {
+      // Apply pre-processor if provided
+      if (emitPreProcessor != null) {
+        payload = emitPreProcessor!(payload);
+      }
       final ackFuture = socket.emitWithAckAsync(
         MongoDBType.mongoDelete.toValue(),
         payload,

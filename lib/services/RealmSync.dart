@@ -64,6 +64,11 @@ class SyncCollectionConfig<T extends RealmObject> {
   /// Default: removes 'sync_update_db' field.
   final Map<String, dynamic> Function(Map<String, dynamic>)? sanitize;
 
+  /// Optional pre-processor to modify raw JSON before emitting to server.
+  /// Called just before socket.emit with the final payload.
+  /// Useful for adding metadata, transforming fields, or applying business logic.
+  final Map<String, dynamic> Function(Map<String, dynamic> rawJson)? emitPreProcessor;
+
   SyncCollectionConfig({
     required this.results,
     required this.collectionName,
@@ -78,6 +83,7 @@ class SyncCollectionConfig<T extends RealmObject> {
     this.applyAckSuccess,
     this.applyNoDiff,
     this.sanitize,
+    this.emitPreProcessor,
     RealmObject Function(Map<String, dynamic> data)? decode,
   }) : decode = decode ?? ((Map<String, dynamic> map) {
           if (fromServerMap != null) {
@@ -180,6 +186,7 @@ class RealmSync {
         socket: socket,
         userId: userId,
         collectionName: cfg.collectionName,
+        emitPreProcessor: cfg.emitPreProcessor,
         toSyncMapForId: (String id) {
           // Linear scan to find object by id (safe for all types)
           // Use dynamic invocation to bypass generic type constraints
